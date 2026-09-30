@@ -288,6 +288,28 @@ ddl-auto: validate
 
 This checks entity mappings against the schema instead of automatically modifying database tables.
 
+## Data Structures and Design Patterns
+
+### Data Structures Used
+
+| Data structure | Where it is used | Why it is used |
+|---|---|---|
+| `Set<String>` | Supported roles in `KeycloakRoleConverter` | Defines the allowed roles and supports membership checks |
+| `Map<?, ?>` | Reading the JWT `realm_access` claim | Accesses nested token data by key |
+| `Collection<?>` | Reading `realm_access.roles` | Processes the role values supplied in the token |
+| `LinkedHashSet<GrantedAuthority>` | Building granted authorities | Removes duplicate authorities while preserving insertion order |
+| `List<GrantedAuthority>` | Returning converted authorities | Provides an immutable result using `List.copyOf` |
+| `List<String>` | Validation errors in `ApiExceptionHandler` | Holds distinct, sorted validation messages |
+
+These collections support authentication and error handling. The project does not currently require custom trees, graphs, or advanced in-memory algorithms.
+
+### Database Indexes
+
+The database uses a composite unique index on:
+
+```text
+(merchant_id, idempotency_key)
+
 ## Local Setup
 
 ### Prerequisites
