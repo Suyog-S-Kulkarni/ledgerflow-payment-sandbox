@@ -37,3 +37,26 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+
+### IntelliJ local configuration ###
+.idea/
+out/
+
+### Local secrets ###
+.env
+.env.*
+!.env.example
+
+### Local application configuration ###
+application-local.yml
+application-local.yaml
+application-local.properties
+
+### Logs ###
+*.log
+logs/
+
+### Windows ###
+Thumbs.db
+Desktop.ini
