@@ -48,6 +48,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http
     ) throws Exception {
+
         JwtAuthenticationConverter authenticationConverter =
                 new JwtAuthenticationConverter();
 
@@ -69,6 +70,7 @@ public class SecurityConfig {
                 )
 
                 .authorizeHttpRequests(authorize -> authorize
+
                         .dispatcherTypeMatchers(DispatcherType.ERROR)
                         .permitAll()
 
@@ -96,6 +98,14 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/payments/*"
+                        )
+                        .hasRole("merchant")
+
+                        // New: merchant-scoped ledger read endpoints.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/ledger/payments/*",
+                                "/api/ledger/balances"
                         )
                         .hasRole("merchant")
 

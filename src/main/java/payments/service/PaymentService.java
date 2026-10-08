@@ -13,6 +13,7 @@ import payments.domain.PaymentStatus;
 import payments.exception.IdempotencyConflictException;
 import payments.exception.PaymentNotFoundException;
 import payments.exception.PaymentStateConflictException;
+import payments.ledger.service.LedgerPostingService;
 import payments.repository.PaymentRepository;
 import payments.repository.PaymentWriter;
 
@@ -24,13 +25,16 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final PaymentWriter paymentWriter;
+    private final LedgerPostingService ledgerPostingService;
 
     public PaymentService(
             PaymentRepository paymentRepository,
-            PaymentWriter paymentWriter
+            PaymentWriter paymentWriter,
+            LedgerPostingService ledgerPostingService
     ) {
         this.paymentRepository = paymentRepository;
         this.paymentWriter = paymentWriter;
+        this.ledgerPostingService = ledgerPostingService;
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -76,7 +80,10 @@ public class PaymentService {
             return replay(concurrentPayment, requestHash);
         }
 
-        Payment payment = findOwnedPayment(merchantId, paymentId);
+        Payment payment = findOwnedPayment(
+                merchantId,
+                paymentId
+        );
 
         return new CreationResult(
                 PaymentResponse.from(payment),
@@ -89,7 +96,10 @@ public class PaymentService {
             UUID merchantId,
             UUID paymentId
     ) {
-        Payment payment = findOwnedPayment(merchantId, paymentId);
+        Payment payment = findOwnedPayment(
+                merchantId,
+                paymentId
+        );
 
         return PaymentResponse.from(payment);
     }
@@ -114,6 +124,13 @@ public class PaymentService {
             payment.applyOutcome(outcome);
         } catch (IllegalStateException exception) {
             throw new PaymentStateConflictException(exception);
+        }
+
+        // Outside the catch block intentionally:
+        // ledger inconsistencies are server failures,
+        // not ordinary payment-state conflicts.
+        if (payment.getStatus() == PaymentStatus.SUCCEEDED) {
+            ledgerPostingService.postSuccessfulPayment(payment);
         }
 
         return PaymentResponse.from(payment);

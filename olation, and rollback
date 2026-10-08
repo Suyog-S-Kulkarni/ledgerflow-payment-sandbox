@@ -1,0 +1,122 @@
+warning: in the working copy of 'pom.xml', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/pom.xml b/pom.xml[m
+[1mindex 1fef868..380e496 100644[m
+[1m--- a/pom.xml[m
+[1m+++ b/pom.xml[m
+[36m@@ -84,6 +84,13 @@[m
+             <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>[m
+         </dependency>[m
+ [m
+[32m+[m[32m        <!-- Spring MVC integration testing -->[m
+[32m+[m[32m        <dependency>[m
+[32m+[m[32m            <groupId>org.springframework.boot</groupId>[m
+[32m+[m[32m            <artifactId>spring-boot-starter-webmvc-test</artifactId>[m
+[32m+[m[32m            <scope>test</scope>[m
+[32m+[m[32m        </dependency>[m
+[32m+[m
+     </dependencies>[m
+ [m
+     <build>[m
+[1mdiff --git a/src/main/java/payments/security/SecurityConfig.java b/src/main/java/payments/security/SecurityConfig.java[m
+[1mindex 2d14b3c..d6f3dfe 100644[m
+[1m--- a/src/main/java/payments/security/SecurityConfig.java[m
+[1m+++ b/src/main/java/payments/security/SecurityConfig.java[m
+[36m@@ -48,6 +48,7 @@[m [mpublic class SecurityConfig {[m
+     public SecurityFilterChain securityFilterChain([m
+             HttpSecurity http[m
+     ) throws Exception {[m
+[32m+[m
+         JwtAuthenticationConverter authenticationConverter =[m
+                 new JwtAuthenticationConverter();[m
+ [m
+[36m@@ -69,6 +70,7 @@[m [mpublic class SecurityConfig {[m
+                 )[m
+ [m
+                 .authorizeHttpRequests(authorize -> authorize[m
+[32m+[m
+                         .dispatcherTypeMatchers(DispatcherType.ERROR)[m
+                         .permitAll()[m
+ [m
+[36m@@ -99,6 +101,14 @@[m [mpublic class SecurityConfig {[m
+                         )[m
+                         .hasRole("merchant")[m
+ [m
+[32m+[m[32m                        // New: merchant-scoped ledger read endpoints.[m
+[32m+[m[32m                        .requestMatchers([m
+[32m+[m[32m                                HttpMethod.GET,[m
+[32m+[m[32m                                "/api/ledger/payments/*",[m
+[32m+[m[32m                                "/api/ledger/balances"[m
+[32m+[m[32m                        )[m
+[32m+[m[32m                        .hasRole("merchant")[m
+[32m+[m
+                         .anyRequest()[m
+                         .denyAll()[m
+                 )[m
+[1mdiff --git a/src/main/java/payments/service/PaymentService.java b/src/main/java/payments/service/PaymentService.java[m
+[1mindex f4b2b02..3511d1d 100644[m
+[1m--- a/src/main/java/payments/service/PaymentService.java[m
+[1m+++ b/src/main/java/payments/service/PaymentService.java[m
+[36m@@ -13,6 +13,7 @@[m [mimport payments.domain.PaymentStatus;[m
+ import payments.exception.IdempotencyConflictException;[m
+ import payments.exception.PaymentNotFoundException;[m
+ import payments.exception.PaymentStateConflictException;[m
+[32m+[m[32mimport payments.ledger.service.LedgerPostingService;[m
+ import payments.repository.PaymentRepository;[m
+ import payments.repository.PaymentWriter;[m
+ [m
+[36m@@ -24,13 +25,16 @@[m [mpublic class PaymentService {[m
+ [m
+     private final PaymentRepository paymentRepository;[m
+     private final PaymentWriter paymentWriter;[m
+[32m+[m[32m    private final LedgerPostingService ledgerPostingService;[m
+ [m
+     public PaymentService([m
+             PaymentRepository paymentRepository,[m
+[31m-            PaymentWriter paymentWriter[m
+[32m+[m[32m            PaymentWriter paymentWriter,[m
+[32m+[m[32m            LedgerPostingService ledgerPostingService[m
+     ) {[m
+         this.paymentRepository = paymentRepository;[m
+         this.paymentWriter = paymentWriter;[m
+[32m+[m[32m        this.ledgerPostingService = ledgerPostingService;[m
+     }[m
+ [m
+     @Transactional(propagation = Propagation.NOT_SUPPORTED)[m
+[36m@@ -76,7 +80,10 @@[m [mpublic class PaymentService {[m
+             return replay(concurrentPayment, requestHash);[m
+         }[m
+ [m
+[31m-        Payment payment = findOwnedPayment(merchantId, paymentId);[m
+[32m+[m[32m        Payment payment = findOwnedPayment([m
+[32m+[m[32m                merchantId,[m
+[32m+[m[32m                paymentId[m
+[32m+[m[32m        );[m
+ [m
+         return new CreationResult([m
+                 PaymentResponse.from(payment),[m
+[36m@@ -89,7 +96,10 @@[m [mpublic class PaymentService {[m
+             UUID merchantId,[m
+             UUID paymentId[m
+     ) {[m
+[31m-        Payment payment = findOwnedPayment(merchantId, paymentId);[m
+[32m+[m[32m        Payment payment = findOwnedPayment([m
+[32m+[m[32m                merchantId,[m
+[32m+[m[32m                paymentId[m
+[32m+[m[32m        );[m
+ [m
+         return PaymentResponse.from(payment);[m
+     }[m
+[36m@@ -116,6 +126,13 @@[m [mpublic class PaymentService {[m
+             throw new PaymentStateConflictException(exception);[m
+         }[m
+ [m
+[32m+[m[32m        // Outside the catch block intentionally:[m
+[32m+[m[32m        // ledger inconsistencies are server failures,[m
+[32m+[m[32m        // not ordinary payment-state conflicts.[m
+[32m+[m[32m        if (payment.getStatus() == PaymentStatus.SUCCEEDED) {[m
+[32m+[m[32m            ledgerPostingService.postSuccessfulPayment(payment);[m
+[32m+[m[32m        }[m
+[32m+[m
+         return PaymentResponse.from(payment);[m
+     }[m
+ [m
